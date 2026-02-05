@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mis tareas</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+background:#0d0d0d;
+color:white;
+font-family:-apple-system,Arial;
+margin:0;
+padding:20px;
+}
+h1{text-align:center;}
+.hidden{display:none;}
+
+.input-container{display:flex;gap:10px;margin-bottom:20px;}
+input{flex:1;padding:12px;border-radius:10px;border:none;background:#1c1c1c;color:white;}
+button{padding:12px;border:none;border-radius:10px;background:white;color:black;font-weight:bold;}
+
+ul{list-style:none;padding:0;}
+li{background:#1a1a1a;margin-bottom:10px;padding:14px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;}
+.left{display:flex;align-items:center;gap:10px;}
+.delete{background:red;color:white;border:none;border-radius:8px;padding:6px 10px;}
+
+.nav{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+background:#111;
+display:flex;
+}
+.nav button{
+flex:1;
+padding:16px;
+background:none;
+border:none;
+color:white;
+font-size:16px;
+}
+.active{background:#222;}
+canvas{background:#111;border-radius:12px;padding:10px;}
+</style>
+</head>
+
+<body>
+
+<!-- TAREAS -->
+<div id="tab-tareas">
+<h1>Mis tareas</h1>
+
+<div class="input-container">
+<input id="taskInput" placeholder="Nueva tarea...">
+<button onclick="addTask()">Añadir</button>
+</div>
+
+<ul id="taskList"></ul>
+</div>
+
+<!-- GRAFICOS -->
+<div id="tab-stats" class="hidden">
+<h1>Progreso</h1>
+<canvas id="chart"></canvas>
+</div>
+
+<!-- MENU -->
+<div class="nav">
+<button class="active" onclick="showTab('tareas',this)">Tareas</button>
+<button onclick="showTab('stats',this)">Progreso</button>
+</div>
+
+<script>
+let tasks = JSON.parse(localStorage.getItem("tasks")||"[]");
+let history = JSON.parse(localStorage.getItem("history")||"{}");
+let lastReset = localStorage.getItem("lastReset");
+let today = new Date().toDateString();
+
+// guardar progreso del dia anterior
+if(lastReset && lastReset!==today){
+let total=tasks.length;
+let done=tasks.filter(t=>t.done).length;
+history[lastReset]= total? Math.round((done/total)*100):0;
+localStorage.setItem("history",JSON.stringify(history));
+
+// reset tareas
+tasks=tasks.map(t=>({text:t.text,done:false}));
+localStorage.setItem("lastReset",today);
+saveTasks();
+}
+if(!lastReset) localStorage.setItem("lastReset",today);
+
+function saveTasks(){
+localStorage.setItem("tasks",JSON.stringify(tasks));
+}
+
+function render(){
+const list=document.getElementById("taskList");
+list.innerHTML="";
+tasks.forEach((task,index)=>{
+const li=document.createElement("li");
+li.innerHTML=`
+<div class="left">
+<input type="checkbox" ${task.done?"checked":""} onchange="toggleTask(${index})">
+<span>${task.text}</span>
+</div>
+<button class="delete" onclick="deleteTask(${index})">X</button>`;
+list.appendChild(li);
+});
+drawChart();
+}
+
+function addTask(){
+const input=document.getElementById("taskInput");
+const text=input.value.trim();
+if(!text) return;
+tasks.push({text,done:false});
+input.value="";
+saveTasks();
+render();
+}
+
+function toggleTask(i){
+tasks[i].done=!tasks[i].done;
+saveTasks();
+}
+
+function deleteTask(i){
+tasks.splice(i,1);
+saveTasks();
+render();
+}
+
+function showTab(tab,btn){
+document.getElementById("tab-tareas").classList.add("hidden");
+document.getElementById("tab-stats").classList.add("hidden");
+document.getElementById("tab-"+tab).classList.remove("hidden");
+
+document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+btn.classList.add("active");
+
+if(tab==="stats") drawChart();
+}
+
+let chart;
+function drawChart(){
+const ctx=document.getElementById("chart");
+if(!ctx) return;
+
+const labels=Object.keys(history).slice(-7);
+const data=Object.values(history).slice(-7);
+
+if(chart) chart.destroy();
+
+chart=new Chart(ctx,{
+type:"line",
+data:{
+labels:labels,
+datasets:[{
+label:"% cumplido",
+data:data,
+borderColor:"white",
+backgroundColor:"rgba(255,255,255,0.1)",
+tension:0.3
+}]
+},
+options:{
+scales:{
+y:{beginAtZero:true,max:100}
+}
+}
+});
+}
+
+render();
+</script>
+
+</body>
+</html>
